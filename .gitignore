@@ -1,4 +1,4 @@
-# --- Dépendances (NE JAMAIS ENVOYER) ---
+# --- Dépendances ---
 node_modules/
 .pnp
 .pnp.js
