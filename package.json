@@ -1,0 +1,29 @@
+{
+  "name": "ia_mobility",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PFE IA Mobility - Optimisation de trajets et prédiction de parking",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+
+  ],
+  "main": "index.js",
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OLP21/IA_Mobility.git"
+  },
+  "keywords": [],
+  "author": "Equipe IA Mobility",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/OLP21/IA_Mobility/issues"
+  },
+  "homepage": "https://github.com/OLP21/IA_Mobility#readme"
+}
