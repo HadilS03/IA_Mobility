@@ -1,0 +1,31 @@
+# --- Dépendances (NE JAMAIS ENVOYER) ---
+node_modules/
+.pnp
+.pnp.js
+
+# --- Environnements Virtuels Python (IA) ---
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+
+# --- Sécurité & Clés Secrètes (CRITIQUE) ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+
+# --- Build & Output ---
+dist/
+build/
+.turbo/
+out/
+
+# --- IDE & Système ---
+.vscode/
+.idea/
+.DS_Store
+*.log
