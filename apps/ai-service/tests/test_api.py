@@ -57,3 +57,9 @@ def test_parkings_avec_cle_valide(client, monkeypatch):
     monkeypatch.setenv("DATA_API_KEY", "cle-de-test")
     reponse = client.get('/parkings', headers={"X-API-Key": "cle-de-test"})
     assert reponse.status_code in (200, 503)
+
+
+def test_documentation_openapi_disponible(client):
+    # La spécification OpenAPI (flasgger) doit être générée sans erreur (C5).
+    reponse = client.get('/apispec_1.json')
+    assert reponse.status_code == 200

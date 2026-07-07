@@ -9,12 +9,17 @@ from functools import wraps
 import joblib
 import pandas as pd
 import psycopg2
+from flasgger import Swagger
 from flask import Flask, Response, g, jsonify, request
 
 from src.db import get_connection
 from src.logging_config import configurer_logs
 
 app = Flask(__name__)
+
+# Documentation OpenAPI auto-générée (accessible sur /apidocs).
+app.config["SWAGGER"] = {"title": "IA Mobility — API", "openapi": "3.0.2"}
+swagger = Swagger(app)
 
 # Chemins ancrés sur l'emplacement du fichier : le service fonctionne quel que
 # soit le dossier depuis lequel on le lance (démo, tests, Docker).
@@ -150,7 +155,16 @@ def cle_api_requise(vue):
 # ---------------------------------------------------------------------------
 @app.route('/health', methods=['GET'])
 def health():
-    """Indique si le service est opérationnel (modèle chargé)."""
+    """Indique si le service est opérationnel (modèle chargé).
+    ---
+    tags:
+      - Supervision (C20)
+    responses:
+      200:
+        description: Service opérationnel, modèle chargé.
+      503:
+        description: Service dégradé, modèle non chargé.
+    """
     charge = model is not None and le is not None
     corps = {
         "status": "ok" if charge else "degraded",
@@ -185,6 +199,12 @@ def metrics():
 
     Nombre de requêtes, taux d'erreur, temps de réponse moyen et date de la
     dernière collecte réussie : de quoi surveiller l'application d'un coup d'œil (E5/C20).
+    ---
+    tags:
+      - Supervision (C20)
+    responses:
+      200:
+        description: Indicateurs de monitorage du service.
     """
     nb = metriques["nb_requetes"]
     taux_erreur = round(metriques["nb_erreurs"] / nb * 100, 2) if nb else 0.0
@@ -204,6 +224,47 @@ def metrics():
 # ---------------------------------------------------------------------------
 @app.route('/predict', methods=['GET'])
 def predict():
+    """Prédit le taux d'occupation d'un parking à un moment donné.
+    ---
+    tags:
+      - Modele (C9)
+    parameters:
+      - name: nom
+        in: query
+        required: true
+        schema:
+          type: string
+        description: Nom du parking (doit être connu du modèle).
+      - name: heure
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: Heure 0-23 (défaut - heure courante).
+      - name: jour
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: Jour de la semaine 0-6, lundi=0 (défaut - jour courant).
+      - name: minute
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: Minute 0-59 (défaut - minute courante).
+    responses:
+      200:
+        description: Prédiction d'occupation renvoyée.
+      400:
+        description: Paramètre manquant ou invalide.
+      404:
+        description: Parking inconnu du modèle.
+      500:
+        description: Erreur interne lors de la prédiction.
+      503:
+        description: Modèle indisponible.
+    """
     if model is None or le is None:
         return jsonify({"erreur": "Modele indisponible."}), 503
 
@@ -266,6 +327,23 @@ def liste_parkings():
     """Renvoie le référentiel des parkings (nom, position, capacité).
 
     C'est cette liste que le frontend utilise pour poser un marqueur par parking.
+    ---
+    tags:
+      - Donnees (C5)
+    parameters:
+      - name: X-API-Key
+        in: header
+        required: true
+        schema:
+          type: string
+        description: Clé d'API d'accès aux données.
+    responses:
+      200:
+        description: Liste des parkings.
+      401:
+        description: Clé d'API manquante ou invalide.
+      503:
+        description: Base de données indisponible.
     """
     try:
         conn = get_connection()
@@ -292,6 +370,45 @@ def historique_parking(nom):
 
     Pagination via ?page (>=1) et ?limite (1 à 500) : on ne renvoie jamais des
     milliers de relevés d'un coup, ce qui protège la mémoire et le réseau.
+    ---
+    tags:
+      - Donnees (C5)
+    parameters:
+      - name: nom
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Nom du parking.
+      - name: X-API-Key
+        in: header
+        required: true
+        schema:
+          type: string
+        description: Clé d'API d'accès aux données.
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: Numéro de page (>= 1, défaut 1).
+      - name: limite
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: Nombre de relevés par page (1 à 500, défaut 50).
+    responses:
+      200:
+        description: Historique paginé du parking.
+      400:
+        description: Paramètre de pagination invalide.
+      401:
+        description: Clé d'API manquante ou invalide.
+      404:
+        description: Parking inconnu.
+      503:
+        description: Base de données indisponible.
     """
     try:
         page = int(request.args.get('page', 1))
@@ -344,7 +461,34 @@ def historique_parking(nom):
 @app.route('/dataset', methods=['GET'])
 @cle_api_requise
 def dataset():
-    """Exporte le jeu d'entraînement, en CSV (défaut) ou en JSON (?format=json)."""
+    """Exporte le jeu d'entraînement, en CSV (défaut) ou en JSON (?format=json).
+    ---
+    tags:
+      - Donnees (C5)
+    parameters:
+      - name: X-API-Key
+        in: header
+        required: true
+        schema:
+          type: string
+        description: Clé d'API d'accès aux données.
+      - name: format
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [csv, json]
+        description: Format d'export (csv par défaut).
+    responses:
+      200:
+        description: Jeu d'entraînement exporté.
+      400:
+        description: Format demandé invalide.
+      401:
+        description: Clé d'API manquante ou invalide.
+      404:
+        description: Jeu d'entraînement introuvable.
+    """
     if not os.path.exists(DATASET_PATH):
         return jsonify({"erreur": "Jeu d'entrainement introuvable."}), 404
 
