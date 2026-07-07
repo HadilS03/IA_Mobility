@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import os
 import time
 from datetime import datetime
@@ -20,9 +21,15 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELE_PATH = os.path.join(BASE_DIR, "models", "modele_parkings.pkl")
 ENCODER_PATH = os.path.join(BASE_DIR, "models", "encoder_noms.pkl")
 DATASET_PATH = os.path.join(BASE_DIR, "data", "processed", "data_training.csv")
+RAW_PATH = os.path.join(BASE_DIR, "data", "raw", "historique_parkings.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 
 logger = configurer_logs(LOG_DIR)
+
+# Compteurs de monitorage (E5/C20), alimentés à chaque requête. En mémoire :
+# simples et suffisants pour suivre la santé du service ; remis à zéro au
+# redémarrage, ce qui est acceptable pour ce niveau de supervision.
+metriques = {"nb_requetes": 0, "nb_erreurs": 0, "duree_totale_ms": 0.0}
 
 # Chargement du modèle et de l'encodeur. En cas d'absence, on laisse model/le à
 # None : les endpoints répondront proprement (503) plutôt que de planter à l'import.
@@ -50,6 +57,14 @@ def _journaliser(response):
     duree_ms = None
     if hasattr(g, "debut"):
         duree_ms = round((time.perf_counter() - g.debut) * 1000, 1)
+
+    # Alimente les compteurs de monitorage (une requête = un point de mesure).
+    metriques["nb_requetes"] += 1
+    if response.status_code >= 400:
+        metriques["nb_erreurs"] += 1
+    if duree_ms is not None:
+        metriques["duree_totale_ms"] += duree_ms
+
     # On journalise le nom de parking demandé (donnée publique), jamais de
     # donnée personnelle.
     logger.info(
@@ -117,6 +132,45 @@ def health():
         "nb_parkings": len(le.classes_) if charge else 0,
     }
     return jsonify(corps), 200 if charge else 503
+
+
+def _derniere_collecte():
+    """Horodatage de la dernière capture enregistrée par le collecteur.
+
+    Lu depuis la dernière ligne du fichier d'historique brut : indicateur
+    concret de « la collecte tourne-t-elle toujours ? ». None si indisponible.
+    """
+    try:
+        derniere = None
+        with open(RAW_PATH, "r", encoding="utf-8") as f:
+            for ligne in f:
+                if ligne.strip():
+                    derniere = ligne
+        if derniere:
+            return json.loads(derniere).get("sauvegarde_le")
+    except Exception:
+        return None
+    return None
+
+
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    """Indicateurs de santé du service, issus de la journalisation des requêtes.
+
+    Nombre de requêtes, taux d'erreur, temps de réponse moyen et date de la
+    dernière collecte réussie : de quoi surveiller l'application d'un coup d'œil (E5/C20).
+    """
+    nb = metriques["nb_requetes"]
+    taux_erreur = round(metriques["nb_erreurs"] / nb * 100, 2) if nb else 0.0
+    temps_moyen = round(metriques["duree_totale_ms"] / nb, 2) if nb else 0.0
+    return jsonify({
+        "nb_requetes": nb,
+        "nb_erreurs": metriques["nb_erreurs"],
+        "taux_erreur_pct": taux_erreur,
+        "temps_reponse_moyen_ms": temps_moyen,
+        "modele_charge": model is not None and le is not None,
+        "derniere_collecte": _derniere_collecte(),
+    })
 
 
 # ---------------------------------------------------------------------------
