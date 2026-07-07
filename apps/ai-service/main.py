@@ -64,6 +64,15 @@ def _journaliser(response):
     return response
 
 
+@app.after_request
+def _autoriser_cors(response):
+    # Le frontend (autre origine : port différent) doit pouvoir appeler l'API.
+    # L'API est publique et en lecture seule, on autorise donc toutes les origines.
+    # Nos requêtes sont de simples GET : pas de préflight à gérer.
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
+
 # ---------------------------------------------------------------------------
 # Helpers de validation
 # ---------------------------------------------------------------------------
