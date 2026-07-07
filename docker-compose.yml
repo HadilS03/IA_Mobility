@@ -1,0 +1,33 @@
+# Orchestration des services d'IA Mobility.
+# En Phase 1, seule la base de données est décrite ici ;
+# le service IA et le frontend seront ajoutés en Phase 3.
+#
+# Lancement : docker compose up -d
+# Les identifiants viennent du fichier .env (voir .env.example), jamais du code.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ia_mobility_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      # Expose la base sur la machine hôte pour pouvoir lancer importer.py en local.
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Persiste les données entre deux redémarrages du conteneur.
+      - db_data:/var/lib/postgresql/data
+      # Le schéma est joué automatiquement au tout premier démarrage.
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      # Permet aux autres services d'attendre que la base soit réellement prête.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
