@@ -1,0 +1,7 @@
+# Configuration ruff (linter Python).
+# On garde des règles simples et lisibles, cohérentes avec un code junior.
+line-length = 100
+
+[lint]
+# E/W : style (pycodestyle), F : erreurs réelles (pyflakes), I : tri des imports.
+select = ["E", "W", "F", "I"]

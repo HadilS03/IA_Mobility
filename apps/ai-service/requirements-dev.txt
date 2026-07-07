@@ -1,0 +1,4 @@
+# Outils de développement et de CI (tests + lint).
+# Séparés des dépendances d'exécution (requirements.txt) : inutiles en production.
+pytest==8.4.1
+ruff>=0.6

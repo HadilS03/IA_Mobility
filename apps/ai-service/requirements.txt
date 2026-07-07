@@ -1,6 +1,6 @@
-flask
-pandas
-scikit-learn
-joblib
-requests
-psycopg2-binary
+flask==3.1.2
+pandas==2.3.2
+scikit-learn==1.8.0
+joblib==1.5.2
+requests==2.32.5
+psycopg2-binary==2.9.12

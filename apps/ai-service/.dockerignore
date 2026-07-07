@@ -1,0 +1,9 @@
+# Fichiers inutiles dans l'image Docker du service.
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+logs/
+tests/
+conftest.py
+requirements-dev.txt

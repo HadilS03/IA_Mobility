@@ -29,3 +29,10 @@ out/
 .idea/
 .DS_Store
 *.log
+
+# --- Journaux d'exécution du service IA ---
+logs/
+
+# --- Caches de tests / lint ---
+.pytest_cache/
+.ruff_cache/
