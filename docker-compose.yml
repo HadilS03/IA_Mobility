@@ -16,8 +16,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      # Expose la base sur la machine hôte pour pouvoir lancer importer.py en local.
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Expose la base sur la machine hôte (port configurable via DB_PORT).
+      # Par défaut 5433 pour ne pas entrer en conflit avec un PostgreSQL déjà
+      # installé localement, qui occupe souvent le port 5432.
+      - "${DB_PORT:-5433}:5432"
     volumes:
       # Persiste les données entre deux redémarrages du conteneur.
       - db_data:/var/lib/postgresql/data
