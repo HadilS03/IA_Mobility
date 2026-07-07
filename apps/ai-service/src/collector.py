@@ -12,14 +12,15 @@ import argparse
 import json
 import logging
 import os
+import sys
 import time
 
 import requests
 
-# La clé vient d'une variable d'environnement (voir .env.example) : on ne veut
-# plus la voir en dur dans le code. Une valeur par défaut garde la démo simple.
-CLE = os.getenv("BORDEAUX_API_KEY", "UFM1S7RTLN")
-URL = f"https://data.bordeaux-metropole.fr/geojson?key={CLE}&typename=st_park_p"
+# La clé vient exclusivement de l'environnement : aucune valeur par défaut, par
+# principe (sécurité par défaut, jamais de secret en dur, même pour une clé open
+# data à faible sensibilité). Le service s'arrête explicitement si elle manque.
+CLE = os.getenv("BORDEAUX_API_KEY", "")
 FICHIER_DEST = os.path.join("data", "raw", "historique_parkings.json")
 
 logging.basicConfig(
@@ -35,8 +36,11 @@ def collecter():
     On n'écrit rien si l'API ne répond pas 200 : mieux vaut une capture
     manquante qu'une donnée corrompue dans l'historique.
     """
+    # URL construite ici (et non au niveau module) pour qu'elle ne soit jamais
+    # bâtie avant la vérification de la clé effectuée dans main().
+    url = f"https://data.bordeaux-metropole.fr/geojson?key={CLE}&typename=st_park_p"
     try:
-        response = requests.get(URL, timeout=15)
+        response = requests.get(url, timeout=15)
         if response.status_code != 200:
             logger.error("API a répondu %s, capture ignorée.", response.status_code)
             return
@@ -58,6 +62,14 @@ def collecter():
 
 
 def main():
+    # Sans clé configurée, on s'arrête tout de suite avec un message clair,
+    # avant tout appel réseau (plutôt que d'échouer silencieusement).
+    if not CLE:
+        logger.error(
+            "BORDEAUX_API_KEY manquante : definissez-la dans .env (voir .env.example)."
+        )
+        sys.exit(1)
+
     parser = argparse.ArgumentParser(description="Collecte des parkings Bordeaux Métropole.")
     parser.add_argument(
         "--loop",
