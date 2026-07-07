@@ -1,42 +1,134 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* Mise en page : panneau latéral fixe à gauche, carte qui remplit le reste. */
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.panneau {
+  width: 340px;
+  flex-shrink: 0;
+  padding: 16px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: #1e1e1e;
+  color: #f0f0f0;
+  border-right: 1px solid #333;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.panneau h1 {
+  font-size: 1.6em;
+  margin: 0 0 4px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.sous-titre {
+  margin: 0 0 16px;
+  font-size: 0.85em;
+  color: #aaa;
 }
 
-.card {
-  padding: 2em;
+.recherche {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #2a2a2a;
+  color: #fff;
+  margin-bottom: 12px;
 }
 
-.read-the-docs {
-  color: #888;
+.controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.controls label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8em;
+  gap: 4px;
+  flex: 1;
+}
+
+.controls select {
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #2a2a2a;
+  color: #fff;
+}
+
+.compteur {
+  font-size: 0.8em;
+  color: #aaa;
+  margin: 8px 0;
+}
+
+.liste-parkings {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.item-parking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #2c2c2c;
+  color: inherit;
+  cursor: pointer;
+}
+
+.item-parking:hover {
+  background: #2a2a2a;
+}
+
+.pastille {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.item-parking .nom {
+  flex: 1;
+  font-size: 0.9em;
+}
+
+.item-parking .occ {
+  font-size: 0.75em;
+  color: #bbb;
+  white-space: nowrap;
+}
+
+.zone-carte {
+  position: relative;
+  flex: 1;
+}
+
+/* La carte doit occuper toute la zone disponible. */
+.carte {
+  height: 100%;
+  width: 100%;
+}
+
+.bandeau-erreur {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: #c62828;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
