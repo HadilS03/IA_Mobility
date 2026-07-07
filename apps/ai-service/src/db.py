@@ -5,6 +5,7 @@ Les paramètres viennent des variables d'environnement (voir .env.example),
 jamais du code : on ne veut pas de mot de passe en dur dans le dépôt.
 """
 import os
+
 import psycopg2
 
 

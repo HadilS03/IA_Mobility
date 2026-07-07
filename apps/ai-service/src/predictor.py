@@ -1,8 +1,9 @@
+import os
+
+import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
-import joblib
-import os
 
 # Chemins
 FICHIER_CLEAN = os.path.join("data", "processed", "data_training.csv")
@@ -12,14 +13,14 @@ ENCODER_PATH = os.path.join(DOSSIER_MODELE, "encoder_noms.pkl")
 
 def entrainer_ia():
     print(f"--- Entraînement de l'IA sur {FICHIER_CLEAN} ---")
-    
+
     if not os.path.exists(FICHIER_CLEAN):
         print("[ERREUR] CSV introuvable. Lance processor.py d'abord.")
         return
 
     # 1. Chargement des données
     df = pd.read_csv(FICHIER_CLEAN)
-    
+
     if len(df) < 10:
         print("[ATTENTION] Pas assez de donnees pour entrainer l'IA.")
         return
@@ -27,7 +28,7 @@ def entrainer_ia():
     # 2. Encodage des noms (Transformer 'Clemenceau' en 1, 'Victoire' en 2, etc.)
     le = LabelEncoder()
     df['nom_encoded'] = le.fit_transform(df['nom'])
-    
+
     # 3. Préparation des variables (X = entrées, y = ce qu'on veut deviner)
     # On utilise : Nom du parking, Heure, Jour de la semaine, Minute
     X = df[['nom_encoded', 'heure', 'jour_semaine', 'minute']]
