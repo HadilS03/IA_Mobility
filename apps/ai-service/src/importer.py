@@ -47,7 +47,6 @@ def importer():
 
     # Cache nom -> id pour éviter de réinterroger la base à chaque relevé.
     parkings_vus = {}
-    nb_releves = 0
 
     with open(FICHIER_RAW, "r", encoding="utf-8") as f:
         for i, line in enumerate(f):
@@ -69,8 +68,11 @@ def importer():
                         continue
 
                     libres = _extraire_libres(prop)
-                    libres = libres if libres is not None else 0
-                    taux = round((total - libres) / total * 100, 2)
+                    libres = max(0, libres if libres is not None else 0)
+                    # Un taux d'occupation est borné à [0, 100] : on nettoie les
+                    # valeurs aberrantes de la source (ex. plus de places libres
+                    # que la capacité annoncée) avant insertion.
+                    taux = max(0.0, min(100.0, round((total - libres) / total * 100, 2)))
 
                     # Coordonnées GeoJSON : [longitude, latitude].
                     coords = feature.get("geometry", {}).get("coordinates", [None, None])
@@ -106,15 +108,24 @@ def importer():
                         """,
                         (parking_id, horodatage, libres, taux),
                     )
-                    nb_releves += cur.rowcount  # 1 si inséré, 0 si doublon ignoré
+
+                # Commit après chaque capture : on garde la progression, et une
+                # capture problématique n'annule pas tout l'import.
+                conn.commit()
 
             except Exception as e:
+                # En cas d'erreur, on annule uniquement la capture en cours et on
+                # repart proprement (le cache doit refléter l'état commité).
+                conn.rollback()
+                parkings_vus.clear()
                 print(f"Ligne {i + 1} ignorée : {e}")
 
-    conn.commit()
+    # On rapporte l'état réel de la base plutôt qu'un compteur mémoire.
+    cur.execute("SELECT (SELECT count(*) FROM parkings), (SELECT count(*) FROM releves)")
+    nb_parkings, nb_releves = cur.fetchone()
     cur.close()
     conn.close()
-    print(f"Import terminé : {len(parkings_vus)} parkings, {nb_releves} nouveaux relevés.")
+    print(f"Import terminé : {nb_parkings} parkings, {nb_releves} relevés en base.")
 
 
 if __name__ == "__main__":
