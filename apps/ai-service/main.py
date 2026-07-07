@@ -4,6 +4,7 @@ import json
 import os
 import time
 from datetime import datetime
+from functools import wraps
 
 import joblib
 import pandas as pd
@@ -119,6 +120,31 @@ def borner_taux(valeur):
     return max(0.0, min(100.0, float(valeur)))
 
 
+# Clé d'API attendue pour les endpoints de données (valeur au démarrage ;
+# le décorateur la relit dynamiquement via os.getenv pour rester testable).
+API_KEY = os.getenv("DATA_API_KEY", "")
+
+
+def cle_api_requise(vue):
+    """Protège un endpoint par une clé d'API transmise dans l'en-tête X-API-Key.
+
+    Sécurité par défaut : si aucune clé n'est configurée (DATA_API_KEY vide),
+    l'accès est refusé — jamais d'API de données ouverte par simple oubli de
+    configuration.
+    """
+    @wraps(vue)
+    def wrapper(*args, **kwargs):
+        # Lecture dynamique : indispensable pour que les tests puissent définir
+        # la clé via monkeypatch après l'import du module.
+        cle_attendue = os.getenv("DATA_API_KEY", "")
+        cle_fournie = request.headers.get("X-API-Key", "")
+        if not cle_attendue or cle_fournie != cle_attendue:
+            return jsonify({"erreur": "Cle d'API manquante ou invalide."}), 401
+        return vue(*args, **kwargs)
+
+    return wrapper
+
+
 # ---------------------------------------------------------------------------
 # Santé du service (E3/C11)
 # ---------------------------------------------------------------------------
@@ -228,8 +254,14 @@ def predict():
 
 # ---------------------------------------------------------------------------
 # Mise à disposition des données (rapport E1, compétence C5)
+#
+# Seuls ces trois endpoints (exposition du jeu de données) sont protégés par
+# clé d'API. On NE protège PAS /health ni /metrics (sondes de supervision qui
+# doivent rester interrogeables), ni /predict (exposition du modèle, périmètre
+# C9, appelé librement par l'interface).
 # ---------------------------------------------------------------------------
 @app.route('/parkings', methods=['GET'])
+@cle_api_requise
 def liste_parkings():
     """Renvoie le référentiel des parkings (nom, position, capacité).
 
@@ -254,6 +286,7 @@ def liste_parkings():
 
 
 @app.route('/parkings/<nom>/historique', methods=['GET'])
+@cle_api_requise
 def historique_parking(nom):
     """Renvoie l'historique horodaté d'un parking, paginé.
 
@@ -309,6 +342,7 @@ def historique_parking(nom):
 
 
 @app.route('/dataset', methods=['GET'])
+@cle_api_requise
 def dataset():
     """Exporte le jeu d'entraînement, en CSV (défaut) ou en JSON (?format=json)."""
     if not os.path.exists(DATASET_PATH):

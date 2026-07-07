@@ -40,3 +40,20 @@ def test_predict_avec_parametres_temporels(client):
     reponse = client.get('/predict?nom=Clemenceau&heure=8&jour=1&minute=0')
     assert reponse.status_code == 200
     assert reponse.get_json()["heure_analyse"] == "8h00"
+
+
+# --- Protection des endpoints de données par clé d'API (C5) ---
+
+def test_parkings_sans_cle_renvoie_401(client, monkeypatch):
+    # Une clé est configurée mais absente de la requête -> accès refusé.
+    monkeypatch.setenv("DATA_API_KEY", "cle-de-test")
+    reponse = client.get('/parkings')
+    assert reponse.status_code == 401
+
+
+def test_parkings_avec_cle_valide(client, monkeypatch):
+    # Avec la bonne clé, l'accès est autorisé : 200 si la base répond, ou 503
+    # si elle est absente en environnement de test (les deux sont acceptables).
+    monkeypatch.setenv("DATA_API_KEY", "cle-de-test")
+    reponse = client.get('/parkings', headers={"X-API-Key": "cle-de-test"})
+    assert reponse.status_code in (200, 503)
