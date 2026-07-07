@@ -68,5 +68,19 @@ services:
     ports:
       - "3000:80"
 
+  collector:
+    # Collecte continue de l'Open Data (une capture toutes les 2 min).
+    # Réutilise l'image du service IA ; boucle interne au script (--loop).
+    build: ./apps/ai-service
+    container_name: ia_mobility_collector
+    restart: unless-stopped
+    command: ["python", "src/collector.py", "--loop", "--intervalle", "120"]
+    environment:
+      BORDEAUX_API_KEY: ${BORDEAUX_API_KEY}
+    volumes:
+      # L'historique brut est écrit sur l'hôte pour alimenter la chaîne de
+      # rafraîchissement (processor -> importer -> predictor -> evaluator).
+      - ./apps/ai-service/data/raw:/app/data/raw
+
 volumes:
   db_data:

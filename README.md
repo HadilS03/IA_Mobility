@@ -150,14 +150,39 @@ Ces mêmes étapes sont exécutées automatiquement par l'intégration continue
 | GET | `/parkings/<nom>/historique` | Historique horodaté, paginé (`page`, `limite`) |
 | GET | `/dataset` | Export du jeu d'entraînement (`format=csv` ou `json`) |
 
-## Pipeline de données
+## Collecte des données
+
+La donnée d'occupation évolue en permanence : la collecte doit tourner **en
+continu** pour constituer l'historique. Une capture est enregistrée **toutes les
+2 minutes**.
+
+### Lancer la collecte
+
+Avec Docker (recommandé, redémarre automatiquement) :
+
+```bash
+docker compose up -d collector
+```
+
+Sans Docker :
 
 ```bash
 cd apps/ai-service
-python src/collector.py --loop --intervalle 120   # collecte répétée
-python src/processor.py                            # nettoyage -> CSV
-python src/predictor.py                            # entraînement du modèle
-python src/importer.py                             # import en base
+nohup python src/collector.py --loop --intervalle 120 &
+```
+
+> Important : la collecte doit tourner sur une machine qui reste allumée.
+
+### Chaîne de rafraîchissement
+
+Après quelques jours de collecte, régénérer les données, le modèle et l'évaluation :
+
+```bash
+cd apps/ai-service
+python src/processor.py     # 1. historique brut  -> data_training.csv
+python src/importer.py      # 2. historique brut  -> PostgreSQL
+python src/predictor.py     # 3. entraînement du modèle de production
+python -m src.evaluator     # 4. évaluation (MAE, baselines, jeu de test figé)
 ```
 
 ## Documentation

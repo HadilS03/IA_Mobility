@@ -73,11 +73,15 @@ def main():
     args = parser.parse_args()
 
     if args.loop:
-        logger.info("Collecte en boucle toutes les %s secondes (Ctrl+C pour arrêter).",
+        logger.info("Collecte en boucle toutes les %s secondes (Ctrl+C pour arreter).",
                     args.intervalle)
-        while True:
-            collecter()
-            time.sleep(args.intervalle)
+        try:
+            while True:
+                collecter()
+                time.sleep(args.intervalle)
+        except KeyboardInterrupt:
+            # Arrêt propre : pas de trace d'erreur quand on stoppe la collecte.
+            logger.info("Arret de la collecte demande par l'utilisateur.")
     else:
         collecter()
 
