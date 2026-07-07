@@ -1,77 +1,171 @@
-from flask import Flask, jsonify, request, Response
-import joblib
-import pandas as pd
-import os
 import csv
 import io
+import os
+import time
 from datetime import datetime
 
+import joblib
+import pandas as pd
 import psycopg2
+from flask import Flask, Response, g, jsonify, request
+
 from src.db import get_connection
+from src.logging_config import configurer_logs
 
 app = Flask(__name__)
 
-# Chemins des modèles
-MODELE_PATH = os.path.join("models", "modele_parkings.pkl")
-ENCODER_PATH = os.path.join("models", "encoder_noms.pkl")
-DATASET_PATH = os.path.join("data", "processed", "data_training.csv")
+# Chemins ancrés sur l'emplacement du fichier : le service fonctionne quel que
+# soit le dossier depuis lequel on le lance (démo, tests, Docker).
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODELE_PATH = os.path.join(BASE_DIR, "models", "modele_parkings.pkl")
+ENCODER_PATH = os.path.join(BASE_DIR, "models", "encoder_noms.pkl")
+DATASET_PATH = os.path.join(BASE_DIR, "data", "processed", "data_training.csv")
+LOG_DIR = os.path.join(BASE_DIR, "logs")
 
-# Chargement du modèle et de l'encodeur
+logger = configurer_logs(LOG_DIR)
+
+# Chargement du modèle et de l'encodeur. En cas d'absence, on laisse model/le à
+# None : les endpoints répondront proprement (503) plutôt que de planter à l'import.
+model = None
+le = None
 if os.path.exists(MODELE_PATH) and os.path.exists(ENCODER_PATH):
     model = joblib.load(MODELE_PATH)
     le = joblib.load(ENCODER_PATH)
-    print(f"[OK] Modele et encodeur charges ({len(le.classes_)} parkings prets).")
+    logger.info("Modele et encodeur charges (%s parkings).", len(le.classes_))
 else:
-    print("[ERREUR] Modeles introuvables. Lance predictor.py d'abord.")
+    logger.error("Modeles introuvables : lance predictor.py d'abord.")
 
 
+# ---------------------------------------------------------------------------
+# Journalisation de chaque requête (E3/C11, E5/C20)
+# ---------------------------------------------------------------------------
+@app.before_request
+def _demarrer_chrono():
+    # Mémorise l'instant de début pour mesurer la durée de traitement.
+    g.debut = time.perf_counter()
+
+
+@app.after_request
+def _journaliser(response):
+    duree_ms = None
+    if hasattr(g, "debut"):
+        duree_ms = round((time.perf_counter() - g.debut) * 1000, 1)
+    # On journalise le nom de parking demandé (donnée publique), jamais de
+    # donnée personnelle.
+    logger.info(
+        "requete",
+        extra={
+            "endpoint": request.path,
+            "parking": request.args.get("nom"),
+            "duree_ms": duree_ms,
+            "statut": response.status_code,
+        },
+    )
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Helpers de validation
+# ---------------------------------------------------------------------------
+def _entier_optionnel(nom_param, defaut, mini, maxi):
+    """Lit un paramètre entier optionnel et le valide dans [mini, maxi].
+
+    Renvoie (valeur, None) si tout va bien, (None, message) en cas d'erreur.
+    Permet de rejouer une prédiction à un autre moment (démo), tout en refusant
+    une valeur aberrante.
+    """
+    brut = request.args.get(nom_param)
+    if brut is None:
+        return defaut, None
+    try:
+        valeur = int(brut)
+    except ValueError:
+        return None, f"{nom_param} doit etre un entier."
+    if valeur < mini or valeur > maxi:
+        return None, f"{nom_param} doit etre entre {mini} et {maxi}."
+    return valeur, None
+
+
+def borner_taux(valeur):
+    """Ramène un taux d'occupation dans [0, 100].
+
+    Un modèle de régression peut renvoyer une valeur légèrement hors bornes ;
+    or un taux d'occupation n'a de sens qu'entre 0 et 100 %.
+    """
+    return max(0.0, min(100.0, float(valeur)))
+
+
+# ---------------------------------------------------------------------------
+# Santé du service (E3/C11)
+# ---------------------------------------------------------------------------
+@app.route('/health', methods=['GET'])
+def health():
+    """Indique si le service est opérationnel (modèle chargé)."""
+    charge = model is not None and le is not None
+    corps = {
+        "status": "ok" if charge else "degraded",
+        "modele_charge": charge,
+        "nb_parkings": len(le.classes_) if charge else 0,
+    }
+    return jsonify(corps), 200 if charge else 503
+
+
+# ---------------------------------------------------------------------------
+# Prédiction d'occupation (E3/C9)
+# ---------------------------------------------------------------------------
 @app.route('/predict', methods=['GET'])
 def predict():
-    # Récupération du nom du parking dans l'URL (ex: ?nom=Clemenceau)
+    if model is None or le is None:
+        return jsonify({"erreur": "Modele indisponible."}), 503
+
     nom_parking = request.args.get('nom')
-
     if not nom_parking:
-        return jsonify({"erreur": "Veuillez préciser un nom de parking"}), 400
+        return jsonify({"erreur": "Veuillez preciser un nom de parking"}), 400
 
+    # Paramètres temporels optionnels : par défaut « maintenant », mais on peut
+    # forcer un moment précis pour reproduire une prédiction (utile en démo).
+    maintenant = datetime.now()
+    heure, err = _entier_optionnel('heure', maintenant.hour, 0, 23)
+    if err:
+        return jsonify({"erreur": err}), 400
+    jour, err = _entier_optionnel('jour', maintenant.weekday(), 0, 6)
+    if err:
+        return jsonify({"erreur": err}), 400
+    minute, err = _entier_optionnel('minute', maintenant.minute, 0, 59)
+    if err:
+        return jsonify({"erreur": err}), 400
+
+    # Parking inconnu du modèle -> 404 explicite (et non une erreur générique).
     try:
-        # 1. On transforme le nom en chiffre
-        # Si le parking n'est pas connu, ça ira dans le 'except'
         nom_encoded = le.transform([nom_parking])[0]
-
-        # 2. On récupère l'heure actuelle
-        maintenant = datetime.now()
-        heure = maintenant.hour
-        jour = maintenant.weekday()
-        minute = maintenant.minute
-
-        # 3. Prédiction
-        input_data = pd.DataFrame([[nom_encoded, heure, jour, minute]],
-                                 columns=['nom_encoded', 'heure', 'jour_semaine', 'minute'])
-        prediction = model.predict(input_data)[0]
-
-        return jsonify({
-            "parking": nom_parking,
-            "prediction_occupation": f"{round(prediction, 2)}%",
-            "heure_analyse": f"{heure}h{minute}",
-            "status": "Succès"
-        })
-
     except ValueError:
         return jsonify({
             "erreur": f"Le parking '{nom_parking}' est inconnu.",
-            "liste_disponible": list(le.classes_[:5]) + ["..."] # On en montre quelques-uns
+            "liste_disponible": list(le.classes_[:5]) + ["..."],
         }), 404
-    except Exception as e:
-        return jsonify({"erreur": str(e)}), 500
+
+    try:
+        input_data = pd.DataFrame(
+            [[nom_encoded, heure, jour, minute]],
+            columns=['nom_encoded', 'heure', 'jour_semaine', 'minute'],
+        )
+        prediction = borner_taux(model.predict(input_data)[0])
+        return jsonify({
+            "parking": nom_parking,
+            "prediction_occupation": f"{round(prediction, 2)}%",
+            "heure_analyse": f"{heure}h{minute:02d}",
+            "jour_semaine": jour,
+            "status": "Succes",
+        })
+    except Exception:
+        # On ne renvoie jamais la stack trace au client : message générique.
+        logger.exception("Erreur interne lors de la prediction")
+        return jsonify({"erreur": "Erreur interne lors de la prediction."}), 500
 
 
 # ---------------------------------------------------------------------------
 # Mise à disposition des données (rapport E1, compétence C5)
-# Ces trois endpoints exposent le référentiel et l'historique stockés dans
-# PostgreSQL, ainsi que le jeu d'entraînement. Ils permettent au frontend et
-# à un tiers de consommer la donnée sans connaître son stockage interne.
 # ---------------------------------------------------------------------------
-
 @app.route('/parkings', methods=['GET'])
 def liste_parkings():
     """Renvoie le référentiel des parkings (nom, position, capacité).
@@ -93,7 +187,7 @@ def liste_parkings():
         return jsonify(parkings)
     except psycopg2.Error:
         # Base indisponible : on renvoie une erreur claire, sans détail technique.
-        return jsonify({"erreur": "Base de données indisponible."}), 503
+        return jsonify({"erreur": "Base de donnees indisponible."}), 503
 
 
 @app.route('/parkings/<nom>/historique', methods=['GET'])
@@ -103,12 +197,11 @@ def historique_parking(nom):
     Pagination via ?page (>=1) et ?limite (1 à 500) : on ne renvoie jamais des
     milliers de relevés d'un coup, ce qui protège la mémoire et le réseau.
     """
-    # Validation des paramètres : on refuse tout de suite une entrée invalide.
     try:
         page = int(request.args.get('page', 1))
         limite = int(request.args.get('limite', 50))
     except ValueError:
-        return jsonify({"erreur": "page et limite doivent être des entiers."}), 400
+        return jsonify({"erreur": "page et limite doivent etre des entiers."}), 400
 
     if page < 1 or limite < 1 or limite > 500:
         return jsonify({"erreur": "page >= 1 et limite entre 1 et 500."}), 400
@@ -119,7 +212,6 @@ def historique_parking(nom):
         conn = get_connection()
         cur = conn.cursor()
 
-        # Le parking existe-t-il ? Sinon 404 explicite plutôt qu'une liste vide.
         cur.execute("SELECT id FROM parkings WHERE nom = %s", (nom,))
         ligne = cur.fetchone()
         if ligne is None:
@@ -150,17 +242,14 @@ def historique_parking(nom):
         conn.close()
         return jsonify({"parking": nom, "page": page, "limite": limite, "releves": releves})
     except psycopg2.Error:
-        return jsonify({"erreur": "Base de données indisponible."}), 503
+        return jsonify({"erreur": "Base de donnees indisponible."}), 503
 
 
 @app.route('/dataset', methods=['GET'])
 def dataset():
-    """Exporte le jeu d'entraînement, en CSV (défaut) ou en JSON (?format=json).
-
-    Utile pour rejouer l'entraînement ou vérifier la donnée qui alimente le modèle.
-    """
+    """Exporte le jeu d'entraînement, en CSV (défaut) ou en JSON (?format=json)."""
     if not os.path.exists(DATASET_PATH):
-        return jsonify({"erreur": "Jeu d'entraînement introuvable."}), 404
+        return jsonify({"erreur": "Jeu d'entrainement introuvable."}), 404
 
     format_demande = request.args.get('format', 'csv').lower()
     df = pd.read_csv(DATASET_PATH)
@@ -176,5 +265,6 @@ def dataset():
 
 
 if __name__ == "__main__":
-    # On lance l'API sur le port 5000
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # debug désactivé par défaut ; activable via FLASK_DEBUG=1 en développement.
+    debug = os.getenv("FLASK_DEBUG", "0") == "1"
+    app.run(host="0.0.0.0", port=5000, debug=debug)
