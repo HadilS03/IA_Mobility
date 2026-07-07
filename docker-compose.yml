@@ -59,6 +59,8 @@ services:
       args:
         # URL de l'API vue depuis le navigateur de l'utilisateur (machine hôte).
         VITE_API_URL: http://localhost:5000
+        # Clé d'API transmise aux endpoints de données (même valeur que DATA_API_KEY).
+        VITE_DATA_API_KEY: ${DATA_API_KEY}
     container_name: ia_mobility_frontend
     restart: unless-stopped
     depends_on:

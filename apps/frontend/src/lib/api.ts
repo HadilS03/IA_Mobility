@@ -4,8 +4,15 @@ import type { Parking } from '../types';
 // Par défaut, l'API locale du service Python.
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
 
+// Clé d'API exigée par les endpoints de données (/parkings, /historique, /dataset).
+const DATA_API_KEY = import.meta.env.VITE_DATA_API_KEY ?? '';
+
 export async function recupererParkings(): Promise<Parking[]> {
-  const reponse = await fetch(`${API_URL}/parkings`);
+  // Endpoint protégé : on transmet la clé d'API. Un 401 (clé absente/invalide)
+  // fait échouer la requête et est traité comme une indisponibilité côté UI.
+  const reponse = await fetch(`${API_URL}/parkings`, {
+    headers: { 'X-API-Key': DATA_API_KEY },
+  });
   if (!reponse.ok) {
     throw new Error(`Appel /parkings en echec (${reponse.status})`);
   }

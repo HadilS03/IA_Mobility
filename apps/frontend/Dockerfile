@@ -13,9 +13,11 @@ RUN npm install
 # Puis le code source.
 COPY . .
 
-# L'URL de l'API est injectée au moment du build (variable Vite).
+# L'URL de l'API et la clé d'API sont injectées au moment du build (variables Vite).
 ARG VITE_API_URL=http://localhost:5000
 ENV VITE_API_URL=$VITE_API_URL
+ARG VITE_DATA_API_KEY=change-me
+ENV VITE_DATA_API_KEY=$VITE_DATA_API_KEY
 RUN npm run build
 
 # --- Étape 2 : service statique ---
