@@ -31,10 +31,9 @@ logger = configurer_logs(LOG_DIR)
 # redémarrage, ce qui est acceptable pour ce niveau de supervision.
 metriques = {"nb_requetes": 0, "nb_erreurs": 0, "duree_totale_ms": 0.0}
 
-# Chargement du modèle et de l'encodeur. En cas d'absence, on laisse model/le à
-# None : les endpoints répondront proprement (503) plutôt que de planter à l'import.
-model = None
-le = None
+# INCIDENT (reproduction) : model et le ne sont définis que si les fichiers
+# existent. S'ils sont absents, la variable n'existe pas -> /predict et /health
+# plantent (erreur 500) au lieu de dégrader proprement.
 if os.path.exists(MODELE_PATH) and os.path.exists(ENCODER_PATH):
     model = joblib.load(MODELE_PATH)
     le = joblib.load(ENCODER_PATH)
@@ -178,9 +177,7 @@ def metrics():
 # ---------------------------------------------------------------------------
 @app.route('/predict', methods=['GET'])
 def predict():
-    if model is None or le is None:
-        return jsonify({"erreur": "Modele indisponible."}), 503
-
+    # INCIDENT (reproduction) : aucune vérification que le modèle est chargé.
     nom_parking = request.args.get('nom')
     if not nom_parking:
         return jsonify({"erreur": "Veuillez preciser un nom de parking"}), 400
