@@ -13,8 +13,9 @@ import pytest
 from sklearn.metrics import mean_absolute_error
 
 # Seuil maximal de MAE toléré sur le jeu de test figé.
-# TODO: fixer à MAE mesurée + 20 % après la première évaluation.
-SEUIL_MAE = None
+# Provisoire : fixe sur l'evaluation du 07/07 (historique d'une seule journee).
+# A recalibrer apres la collecte longue duree, a J-2 de la soutenance.
+SEUIL_MAE = 3.2
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUNDLE_PATH = os.path.join(BASE_DIR, "models", "modele_evalue.pkl")
