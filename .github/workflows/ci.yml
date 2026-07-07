@@ -1,0 +1,37 @@
+name: CI
+
+# Se déclenche à chaque push et à chaque pull request (logique d'intégration
+# continue décrite dans les rapports E3/C13 et E4/C19).
+on:
+  push:
+  pull_request:
+
+jobs:
+  ai-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # Toutes les commandes tournent dans le service Python.
+        working-directory: apps/ai-service
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer les dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Tests (pytest)
+        run: pytest -q
+
+      - name: Construire l'image Docker du service
+        run: docker build -t ia-mobility-ai-service .
