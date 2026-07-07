@@ -14,14 +14,14 @@ def entrainer_ia():
     print(f"--- Entraînement de l'IA sur {FICHIER_CLEAN} ---")
     
     if not os.path.exists(FICHIER_CLEAN):
-        print("❌ CSV introuvable. Lance processor.py d'abord.")
+        print("[ERREUR] CSV introuvable. Lance processor.py d'abord.")
         return
 
     # 1. Chargement des données
     df = pd.read_csv(FICHIER_CLEAN)
     
     if len(df) < 10:
-        print("⚠️ Pas assez de données pour entraîner l'IA.")
+        print("[ATTENTION] Pas assez de donnees pour entrainer l'IA.")
         return
 
     # 2. Encodage des noms (Transformer 'Clemenceau' en 1, 'Victoire' en 2, etc.)
@@ -42,9 +42,9 @@ def entrainer_ia():
     joblib.dump(model, MODELE_PATH)
     joblib.dump(le, ENCODER_PATH)
 
-    print(f"✅ IA entraînée avec succès !")
-    print(f"📊 Parkings mémorisés : {len(le.classes_)}")
-    print(f"📈 Précision du modèle : {round(model.score(X, y) * 100, 2)}%")
+    print("[OK] IA entrainee avec succes.")
+    print(f"Parkings memorises : {len(le.classes_)}")
+    print(f"Precision du modele (R2) : {round(model.score(X, y) * 100, 2)}%")
 
 if __name__ == "__main__":
     entrainer_ia()

@@ -14,7 +14,7 @@ def transformer_donnees():
     
     # 1. Vérification de l'existence du fichier source
     if not os.path.exists(FICHIER_RAW):
-        print(f"❌ ERREUR : Le fichier {FICHIER_RAW} est introuvable.")
+        print(f"[ERREUR] Le fichier {FICHIER_RAW} est introuvable.")
         return
 
     # 2. Création du dossier processed s'il n'existe pas
@@ -64,11 +64,11 @@ def transformer_donnees():
                     else:
                         # Diagnostic pour comprendre pourquoi on n'en a que 4
                         if i == 0: # On affiche seulement pour la première capture
-                            print(f"🔍 Parking ignoré: {nom} | total={total} | libres={libres}")
+                            print(f"[IGNORE] Parking: {nom} | total={total} | libres={libres}")
                 # --------------------------------------
 
             except Exception as e:
-                print(f"⚠️ Erreur à la ligne {i+1} : {e}")
+                print(f"[ATTENTION] Erreur a la ligne {i+1} : {e}")
 
     # 4. Conversion et sauvegarde
     if all_rows:
@@ -76,10 +76,10 @@ def transformer_donnees():
         # Supprime les doublons si on a collecté plusieurs fois les mêmes données
         df = df.drop_duplicates()
         df.to_csv(FICHIER_CLEAN, index=False)
-        print(f"✅ SUCCÈS : {len(df)} lignes enregistrées.")
-        print(f"📊 Parkings différents dans le CSV : {df['nom'].nunique()}")
+        print(f"[OK] {len(df)} lignes enregistrées.")
+        print(f"Parkings differents dans le CSV : {df['nom'].nunique()}")
     else:
-        print("⚠️ Aucune donnée n'a pu être extraite.")
+        print("[ATTENTION] Aucune donnee n'a pu être extraite.")
 
 if __name__ == "__main__":
     transformer_donnees()
