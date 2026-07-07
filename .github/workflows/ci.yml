@@ -35,3 +35,20 @@ jobs:
 
       - name: Construire l'image Docker du service
         run: docker build -t ia-mobility-ai-service .
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Construire le frontend
+        run: npm run build -w @ia-mobility/frontend
