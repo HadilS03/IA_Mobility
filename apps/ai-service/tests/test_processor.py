@@ -32,12 +32,11 @@ def test_parking_sans_capacite_est_ignore():
     assert extraire_lignes(cap) == []
 
 
-def test_libres_absent_compte_zero():
-    # Si "libres" manque, on considère 0 place libre (parking plein).
+def test_ligne_sans_libres_ecartee():
+    # Sans mesure de places libres (ni "libres" ni "nb_places_disponibles"),
+    # on écarte la ligne au lieu d'imputer 0 (évite un parking « plein » fantôme).
     cap = _capture([_feature({"nom": "Complet", "total": 50})])
-    ligne = extraire_lignes(cap)[0]
-    assert ligne["libres"] == 0
-    assert ligne["occupation_pct"] == 100.0
+    assert extraire_lignes(cap) == []
 
 
 def test_noms_de_champ_alternatifs():

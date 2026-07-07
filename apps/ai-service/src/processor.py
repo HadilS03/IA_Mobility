@@ -37,14 +37,17 @@ def extraire_lignes(capture):
         if libres is None:
             libres = prop.get("nb_places_disponibles")
 
-        # Sans capacité valide, la ligne n'est pas exploitable : on l'ignore.
-        if total is not None and total > 0:
-            libres_clean = libres if libres is not None else 0
-            occ_pct = (total - libres_clean) / total * 100
+        # On ne conserve une ligne que si la capacité ET la mesure de places
+        # libres sont réellement disponibles. On écarte une ligne sans mesure
+        # plutôt que d'inventer une donnée d'apprentissage : imputer libres=0
+        # fabriquerait des parkings « pleins » fantômes et biaiserait le modèle
+        # vers la saturation.
+        if total is not None and total > 0 and libres is not None:
+            occ_pct = (total - libres) / total * 100
             lignes.append({
                 "nom": nom,
                 "total": total,
-                "libres": libres_clean,
+                "libres": libres,
                 "occupation_pct": round(occ_pct, 2),
                 "heure": date_capture.hour,
                 "jour_semaine": date_capture.dayofweek,
