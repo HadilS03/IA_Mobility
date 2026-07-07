@@ -16,5 +16,6 @@ COPY . .
 # 6. On expose le port 5000 pour Flask
 EXPOSE 5000
 
-# 7. Lancer l'API directement (vu que le modèle est déjà entraîné)
-CMD ["python", "main.py"]
+# 7. Au démarrage : import des données puis lancement de l'API (voir entrypoint.sh).
+#    On passe par "sh" pour ne pas dépendre du bit exécutable (perdu sous Windows).
+CMD ["sh", "entrypoint.sh"]

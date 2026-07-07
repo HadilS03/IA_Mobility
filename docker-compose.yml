@@ -1,8 +1,9 @@
-# Orchestration des services d'IA Mobility.
-# En Phase 1, seule la base de données est décrite ici ;
-# le service IA et le frontend seront ajoutés en Phase 3.
+# Orchestration complète d'IA Mobility : base + API + frontend.
 #
-# Lancement : docker compose up -d
+# Démo de bout en bout : `docker compose up --build`
+#   - base PostgreSQL initialisée avec le schéma ;
+#   - service IA qui importe les données puis expose l'API sur le port 5000 ;
+#   - frontend servi sur http://localhost:3000.
 # Les identifiants viennent du fichier .env (voir .env.example), jamais du code.
 
 services:
@@ -28,6 +29,38 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  ai-service:
+    build: ./apps/ai-service
+    container_name: ia_mobility_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        # On attend que la base soit prête avant d'importer les données.
+        condition: service_healthy
+    environment:
+      # Dans le réseau Docker, la base est joignable via le nom du service "db".
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      BORDEAUX_API_KEY: ${BORDEAUX_API_KEY}
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      args:
+        # URL de l'API vue depuis le navigateur de l'utilisateur (machine hôte).
+        VITE_API_URL: http://localhost:5000
+    container_name: ia_mobility_frontend
+    restart: unless-stopped
+    depends_on:
+      - ai-service
+    ports:
+      - "3000:80"
 
 volumes:
   db_data:
