@@ -43,12 +43,16 @@ def extraire_lignes(capture):
         # fabriquerait des parkings « pleins » fantômes et biaiserait le modèle
         # vers la saturation.
         if total is not None and total > 0 and libres is not None:
-            occ_pct = (total - libres) / total * 100
+            # Un taux d'occupation est physiquement borné à [0, 100]. La source
+            # renvoie parfois plus de places libres que la capacité (bruit
+            # capteur) -> taux négatif : on borne, comme le font déjà importer.py
+            # et l'API (borner_taux), pour garder une cible d'apprentissage propre.
+            occ_pct = max(0.0, min(100.0, round((total - libres) / total * 100, 2)))
             lignes.append({
                 "nom": nom,
                 "total": total,
                 "libres": libres,
-                "occupation_pct": round(occ_pct, 2),
+                "occupation_pct": occ_pct,
                 "heure": date_capture.hour,
                 "jour_semaine": date_capture.dayofweek,
                 "minute": date_capture.minute,
