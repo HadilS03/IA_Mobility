@@ -1,84 +1,167 @@
 # IA Mobility
 
-Bienvenue sur le dépôt du projet IA Mobility. Le projet utilise une architecture Monorepo pour centraliser le Frontend, le Backend et les services d'IA.
+Application web qui **estime le taux d'occupation des parkings de Bordeaux** à
+partir de l'heure et du jour, pour aider un utilisateur à anticiper ses chances
+de stationnement. L'estimation repose sur un modèle d'apprentissage automatique
+(Random Forest) alimenté par les données ouvertes de Bordeaux Métropole.
 
-## Etat Actuel du Projet
+Ce dépôt est le support de la soutenance du titre professionnel **Développeur en
+Intelligence Artificielle** (RNCP37827), blocs 1 à 3 (épreuves E1, E3, E4, E5).
 
-Le squelette du monorepo est initialisé sur la branche main.
+## Fonctionnalités
 
-### Tâches déjà accomplies (Teddy):
+- Carte interactive des parkings de Bordeaux (un marqueur par parking).
+- Prédiction d'occupation au clic sur un parking, avec mode dégradé si le
+  service de prédiction est indisponible.
+- Panneau latéral trié par occupation croissante (« où me garer maintenant ? »).
+- Recherche de parking et sélecteur heure/jour pour simuler un autre moment.
+- API REST : prédiction, référentiel des parkings, historique, export du jeu
+  d'entraînement, santé et métriques de monitorage.
 
-* Infrastructure : Initialisation du Monorepo avec npm workspaces.
-* Frontend : Initialisation du projet React + Vite + TypeScript.
-* Cartographie : Installation de Leaflet et intégration dans le projet.
-* Composant Map : Modification de App.tsx pour afficher une carte interactive fonctionnelle avec correction du rendu des icônes.
+## Architecture
 
----
+```mermaid
+flowchart LR
+    OD[Open Data<br/>Bordeaux Métropole] -->|collector.py| RAW[historique_parkings.json]
+    RAW -->|processor.py| CSV[data_training.csv]
+    RAW -->|importer.py| DB[(PostgreSQL<br/>parkings + releves)]
+    CSV -->|predictor.py| MODELE[Modèle Random Forest]
+    MODELE --> API
+    DB --> API[API Flask]
+    API -->|HTTP / JSON| FRONT[Frontend React + Leaflet]
+    FRONT -->|navigateur| USER((Utilisateur))
+```
 
-## Installation et Utilisation
+Trois services, orchestrés par Docker Compose :
 
-Si vous récupérez ce projet via GitHub, vous n'avez pas besoin de réinstaller Node.js ou de recréer les dossiers si vous avez déjà l'environnement prêt.
+| Service | Rôle | Technologie |
+|---|---|---|
+| `db` | Stockage du référentiel et de l'historique | PostgreSQL |
+| `ai-service` | API de prédiction et de mise à disposition des données | Python, Flask, scikit-learn |
+| `frontend` | Interface cartographique | React, Vite, TypeScript, Leaflet |
 
-### 1. Installation des dépendances
+## Structure du dépôt
 
-À la racine du projet, lancez la commande suivante pour installer tous les paquets :
+```
+IA_Mobility/
+├── apps/
+│   ├── ai-service/            # Service Python (API + IA + données)
+│   │   ├── main.py            # API Flask (endpoints)
+│   │   ├── src/
+│   │   │   ├── collector.py   # Collecte Open Data (option --loop)
+│   │   │   ├── processor.py   # Nettoyage -> data_training.csv
+│   │   │   ├── predictor.py   # Entraînement du modèle
+│   │   │   ├── importer.py    # Import JSON -> PostgreSQL (idempotent)
+│   │   │   ├── db.py          # Connexion PostgreSQL
+│   │   │   └── logging_config.py
+│   │   ├── tests/             # Tests pytest
+│   │   ├── data/              # Données brutes et jeu d'entraînement
+│   │   ├── models/            # Modèle et encodeur entraînés (.pkl)
+│   │   └── Dockerfile
+│   └── frontend/              # Interface React + Leaflet
+│       ├── src/
+│       └── Dockerfile
+├── db/schema.sql             # Schéma PostgreSQL (joué au 1er démarrage)
+├── docker-compose.yml        # Orchestration base + API + frontend
+├── docs/
+│   ├── bdd.md                # Modèle de données et RGPD
+│   ├── incident.md           # Fiche d'incident (E5)
+│   └── rapports/             # Rapports professionnels E1/E3/E4/E5
+└── .github/workflows/ci.yml  # Intégration continue
+```
+
+## Prérequis
+
+- **Docker Desktop** (avec WSL 2 sous Windows) pour le lancement complet.
+- Pour le développement hors Docker : **Python 3.11+** et **Node.js 20.19+ / 22.12+**.
+
+## Installation et lancement (Docker)
+
+```bash
+# 1. Copier le modèle de configuration et l'adapter si besoin.
+cp .env.example .env
+
+# 2. Construire et lancer les trois services.
+docker compose up --build
+```
+
+Puis ouvrir **http://localhost:3000**.
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:3000 |
+| API | http://localhost:5000 |
+| Base PostgreSQL | localhost:5433 |
+
+> Le service `ai-service` importe automatiquement les données dans PostgreSQL au
+> démarrage (opération idempotente), puis expose l'API.
+
+Pour arrêter : `docker compose down` (ajouter `-v` pour supprimer aussi les données).
+
+## Lancement sans Docker (développement)
+
+**Service IA :**
+
+```bash
+cd apps/ai-service
+pip install -r requirements.txt
+python main.py            # API sur http://localhost:5000
+```
+
+**Frontend :**
 
 ```bash
 npm install
-
+npm run dev -w @ia-mobility/frontend   # http://localhost:5173
 ```
 
-### 2. Lancer le Frontend
+Les endpoints de données (`/parkings`, `/historique`) nécessitent une base
+PostgreSQL accessible (voir `.env`) ; `/predict` et `/health` fonctionnent sans base.
 
-Pour tester l'interface et la carte :
+## Tests
+
+**Service IA (lint + tests unitaires et d'API) :**
 
 ```bash
-npm run dev -w @ia-mobility/frontend
-
+cd apps/ai-service
+pip install -r requirements.txt -r requirements-dev.txt
+ruff check .
+pytest
 ```
 
----
+**Frontend (build) :**
 
-## Rappel bref des tâches (regarder le trello)
+```bash
+npm ci
+npm run build -w @ia-mobility/frontend
+```
 
-### Frontend (Lead: Teddy)
+Ces mêmes étapes sont exécutées automatiquement par l'intégration continue
+(`.github/workflows/ci.yml`) à chaque push et pull request.
 
-* Déjà fait : Init React/Vite, Intégration Leaflet, Config App.tsx.
-* À faire : Créer les formulaires d'adresses et gérer l'affichage des 5 trajets optimisés.
+## Endpoints de l'API
 
-### Authentification et RGPD (Lead: Laurent)
+| Méthode | Endpoint | Description |
+|---|---|---|
+| GET | `/health` | État du service (modèle chargé) |
+| GET | `/metrics` | Indicateurs de monitorage (requêtes, taux d'erreur, temps moyen) |
+| GET | `/predict?nom=...` | Prédiction d'occupation. Paramètres optionnels : `heure`, `jour`, `minute` |
+| GET | `/parkings` | Référentiel des parkings (nom, coordonnées, capacité) |
+| GET | `/parkings/<nom>/historique` | Historique horodaté, paginé (`page`, `limite`) |
+| GET | `/dataset` | Export du jeu d'entraînement (`format=csv` ou `json`) |
 
-* Implémenter la création de compte et connexion.
-* Configurer BetterAuth avec hachage Argon2.
-* Mettre en place l'OAuth Google et la protection CSRF.
-* Gérer le schéma "Users" en base de données.
+## Pipeline de données
 
-### IA et Moteur de recherche (Lead: Mamor)
+```bash
+cd apps/ai-service
+python src/collector.py --loop --intervalle 120   # collecte répétée
+python src/processor.py                            # nettoyage -> CSV
+python src/predictor.py                            # entraînement du modèle
+python src/importer.py                             # import en base
+```
 
-* Collecter les données de parking (Open Data).
-* Feature engineering et entraînement du modèle Random Forest.
-* Créer l'endpoint /predict via FastAPI.
+## Documentation
 
-### Infrastructure et Smart Search (Lead: Boubacar)
-
-* Configuration de PostgreSQL avec Docker.
-* Mise en place de Drizzle ORM.
-* Intégration des APIs (Google Directions, Météo, Trafic) et agrégation des données.
-
----
-
-## Structure du dossier apps/
-
-* frontend/ : Interface React + Leaflet (déjà configurée).
-* backend/ : API Node.js (à développer par Laurent).
-* ai-service/ : Service Python FastAPI (à développer par Mamor).
-
----
-
-## Notes importantes
-
-* Leaflet : J'ai dû modifier App.tsx pour afficher la carte.
-* Git : Travaillez sur vos branches respectives et faites des Pull Requests vers main.
-
-
-
+- [docs/bdd.md](docs/bdd.md) — modèle de données, choix de conception, RGPD.
+- [docs/incident.md](docs/incident.md) — fiche d'incident (épreuve E5).
+- [docs/rapports/](docs/rapports/) — rapports professionnels E1, E3, E4, E5.

@@ -23,6 +23,8 @@ dist/
 build/
 .turbo/
 out/
+# Cache local de Vite (regénéré automatiquement).
+.vite/
 
 # --- IDE & Système ---
 .vscode/
