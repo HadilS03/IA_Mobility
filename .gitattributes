@@ -1,0 +1,3 @@
+# Les scripts shell doivent rester en fins de ligne LF, même sous Windows :
+# un \r casserait leur exécution dans un conteneur Linux (entrypoint Docker).
+*.sh text eol=lf
