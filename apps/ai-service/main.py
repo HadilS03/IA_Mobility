@@ -88,9 +88,12 @@ def _journaliser(response):
 @app.after_request
 def _autoriser_cors(response):
     # Le frontend (autre origine : port différent) doit pouvoir appeler l'API.
-    # L'API est publique et en lecture seule, on autorise donc toutes les origines.
-    # Nos requêtes sont de simples GET : pas de préflight à gérer.
+    # L'en-tête personnalisé X-API-Key rend la requête « non simple » : le
+    # navigateur envoie d'abord un préflight OPTIONS, auquel il faut répondre en
+    # autorisant explicitement cet en-tête et la méthode, sinon l'appel est bloqué.
     response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "X-API-Key, Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
     return response
 
 

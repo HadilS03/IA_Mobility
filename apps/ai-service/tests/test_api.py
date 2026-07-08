@@ -63,3 +63,10 @@ def test_documentation_openapi_disponible(client):
     # La spécification OpenAPI (flasgger) doit être générée sans erreur (C5).
     reponse = client.get('/apispec_1.json')
     assert reponse.status_code == 200
+
+
+def test_cors_autorise_entete_cle_api(client):
+    # Le préflight CORS doit autoriser l'en-tête X-API-Key, sinon le navigateur
+    # bloque l'appel du frontend aux endpoints de données (non-régression).
+    reponse = client.options('/parkings')
+    assert "X-API-Key" in reponse.headers.get("Access-Control-Allow-Headers", "")
